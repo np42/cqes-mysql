@@ -1,8 +1,7 @@
-import * as CQES from 'cqes';
+import * as CQES  from 'cqes';
 import * as mysql from 'mysql';
 
-export interface Config {
-  name: string;
+export interface Props extends CQES.Repository.Props {
   connection: {
     host:                string,
     user:                string,
@@ -14,88 +13,116 @@ export interface Config {
   table?: string;
 }
 
-export class Repository {
+interface SQLQueryCallback {
+  (error: Error, result?: Array<any>, fields?: any): void;
+}
 
-  protected logger:      CQES.Logger;
+interface SQLTransactCallback {
+  (error: Error, result?: any): void;
+}
+
+interface SQLTransacQueries {
+  (requester: SQLRequester): Promise<any>;
+}
+
+interface SQLRequester {
+  (query: string, params: Array<any>): Promise<any>;
+}
+
+export interface Children extends CQES.Repository.Children {}
+
+export class Repository extends CQES.Repository.Repository {
   protected connection:  mysql.Pool;
   protected running:     number;
-  protected config:      Config;
 
-  protected init(config: Config) {
-    this.logger     = new CQES.Logger(config.name + '.Repository.MySQL', 'blue');
-    if (config.connection.waitForConnections !== false)
-      config.connection.waitForConnections = true;
-    if (!(config.connection.lifetime > 0))
-      config.connection.lifetime = 600000;
-    this.connection = mysql.createPool(config.connection);
-    this.config     = config;
+  constructor(props: Props, children: Children) {
+    super({ type: 'Repository.MySQL', color: 'blue', ...props }, children);
+    if (props.connection == null)
+      props.connection = { host: '127.0.0.1', user: 'root', password: '', database: 'mysql' };
+    if (props.connection.waitForConnections !== false)
+      props.connection.waitForConnections = true;
+    if (!(props.connection.lifetime > 0))
+      props.connection.lifetime = 600000;
+    this.connection = mysql.createPool(props.connection);
   }
 
-  protected start() {
-    return new Promise((resolve, reject) => {
-      this.connection.getConnection((err, connection) => {
-        if (err) return reject(false);
-        connection.release();
-        resolve(true);
-      });
-    });
-  }
-
-  protected stop() {
-    return new Promise(resolve => this.connection.end(resolve));
-  }
-
-  protected query(query: string, params: Array<any>, cb?: (error: Error, result: Array<any>) => void) {
+  protected request(query: string, params: Array<any>, cb?: SQLQueryCallback) {
+    if (cb == null) cb = e => null;
     return this.connection.getConnection((err, connection) => {
-      if (err) this.query(query, params, cb);
+      if (err) this.request(query, params, cb);
       const timedConnection = <any>connection;
       if (timedConnection.createdAt == null) timedConnection.createdAt = Date.now();
-      connection.query(query, params, (err, result) => {
-        if (timedConnection.createdAt + this.config.connection.lifetime > Date.now())
+      const request = connection.query(query, params, (err, result, fields) => {
+        if (timedConnection.createdAt + this.props.connection.lifetime > Date.now())
           connection.destroy();
         else
           connection.release();
+        this.logger.log(request.sql);
         if (err && err.fatal) {
           this.logger.error(err);
-          return this.query(query, params, cb);
+          return this.request(query, params, cb);
         } else {
-          if (cb != null) return cb(err, result);
+          if (cb != null) return cb(err, result, fields);
         }
       });
     });
   }
 
-  protected load(key: string) {
-    const table = mysql.escapeId(this.config.table);
-    return new Promise((resolve, reject) => {
-      this.query
-      ( [ 'SELECT `version`, `status`, `data` FROM ' + table
-        , 'WHERE `key` = ?'
-        ].join(' ')
-      , [ key ]
-      , (error, [entry]) => {
-        if (error) return reject(error);
-        if (entry == null) return resolve(new CQES.State());
-        return resolve(new CQES.State(entry.version, entry.status, JSON.parse(entry.data)));
+  protected transact(queries: SQLTransacQueries, cb?: SQLTransactCallback): Promise<void> {
+    if (cb == null) cb = e => null;
+    return new Promise(resolve => {
+      this.connection.getConnection((err, connection) => {
+        if (err) { this.logger.error(err); return cb(err); }
+        const timedConnection = <any>connection;
+        if (timedConnection.createdAt == null) timedConnection.createdAt = Date.now();
+        return connection.beginTransaction(async err => {
+          if (err) { this.logger.error(err); return cb(err); }
+          const requester = (query: string, params: Array<any>) => {
+            return new Promise((resolve, reject) => {
+              const request = connection.query(query, params, (err: Error, result: Array<any>) => {
+                this.logger.log(request.sql);
+                if (err) return reject(err);
+                else return resolve(result);
+              });
+            });
+          };
+          let result = <any>null;
+          try { result = await queries(requester); }
+          catch (err) {
+            this.logger.error(err);
+            return connection.rollback(() => cb(err));
+          }
+          return connection.commit(err => {
+            if (timedConnection.createdAt + this.props.connection.lifetime > Date.now())
+              connection.destroy();
+            else
+              connection.release();
+            resolve();
+            if (err) { this.logger.error(err); return cb(err); }
+            return cb(null, result);
+          });
+        });
       });
     });
   }
 
-  protected save(key: string, state: CQES.State) {
-    const table = mysql.escapeId(this.config.table);
-    return this.query
-    ( [ 'INSERT INTO ' + table + ' (`key`, `version`, `status`, `data`) VALUES (?, ?, ?, ?)'
-      , 'ON DUPLICATE KEY UPDATE `version` = ?, `status` = ?, `data` = ?'
-      ].join(' ')
-    , [ key, state.version, state.status, JSON.stringify(state.data)
-      , state.version, state.status, JSON.stringify(state.data)
-      ]
-    );
+  //--
+  public start(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this.connection.getConnection((err, connection) => {
+        if (err) {
+          this.logger.error(err);
+          return resolve(false);
+        } else {
+          connection.release();
+          resolve(true);
+        }
+      });
+    });
   }
 
-  protected resolve(query: CQES.Query): Promise<CQES.Reply> {
-    const reply = new CQES.Reply(CQES.ReplyStatus.Rejected, new Error("Not implemented"));
-    return Promise.resolve(reply);
+  public stop(): Promise<void> {
+    return new Promise(resolve => this.connection.end(() => resolve()));
   }
 
 }

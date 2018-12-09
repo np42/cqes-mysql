@@ -1,6 +1,6 @@
 {
   "name": "cqes-db-mysql",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "CQES Repository for MySQL",
   "main": "dist/index.js",
   "scripts": {
@@ -18,12 +18,13 @@
   "author": "Nicolas Pelletier <npelletier@apiculteur.io>",
   "license": "ISC",
   "devDependencies": {
-    "@types/mysql": "^2.15.5"
+    "@types/mysql": "^2.15.5",
+    "@types/node": "^8.10.37"
   },
   "dependencies": {
     "mysql": "^2.16.0"
   },
   "peerDependencies": {
-    "cqes": "^1.0.4"
+    "cqes": "^2.0.0"
   }
 }
