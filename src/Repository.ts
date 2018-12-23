@@ -33,7 +33,6 @@ export interface Children extends CQES.Repository.Children {}
 
 export class Repository extends CQES.Repository.Repository {
   protected connection:  mysql.Pool;
-  protected running:     number;
 
   constructor(props: Props, children: Children) {
     super({ type: 'Repository.MySQL', color: 'blue', ...props }, children);
@@ -123,6 +122,8 @@ export class Repository extends CQES.Repository.Repository {
           this.logger.error(err);
           return resolve(false);
         } else {
+          const timedConnection = <any>connection;
+          timedConnection.createdAt = Date.now();
           connection.release();
           resolve(true);
         }
