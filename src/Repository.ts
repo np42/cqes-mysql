@@ -46,60 +46,69 @@ export class Repository extends CQES.Repository.Repository {
     this.connection = mysql.createPool(props.connection);
   }
 
-  protected request(query: string, params: Array<any>, cb?: SQLQueryCallback) {
-    if (cb == null) cb = e => null;
-    return this.connection.getConnection((err, connection) => {
-      if (err) this.request(query, params, cb);
+  protected getConnection(handler: (err: Error, connection: mysql.PoolConnection) => void) {
+    this.connection.getConnection((err: Error, connection: mysql.PoolConnection) => {
       const timedConnection = <any>connection;
-      if (timedConnection.createdAt == null) timedConnection.createdAt = Date.now();
-      const request = connection.query(query, params, (err, result, fields) => {
-        if (timedConnection.createdAt + this.props.connection.lifetime > Date.now())
+      if (err) {
+        if (connection) connection.destroy();
+        handler(err, null);
+      } else if (timedConnection.createdAt == null) {
+        timedConnection.createdAt = Date.now();
+        handler(null, connection);
+      } else {
+        const age = Date.now() - timedConnection.createdAt;
+        if (age > this.props.connection.lifetime) {
           connection.destroy();
-        else
-          connection.release();
-        this.logger.log(request.sql);
-        if (err && err.fatal) {
-          this.logger.error(err);
-          return this.request(query, params, cb);
+          this.getConnection(handler);
         } else {
-          if (cb != null) return cb(err, result, fields);
+          handler(null, connection);
         }
+      }
+    });
+  }
+
+  protected request(query: string, params: Array<any>, cb?: SQLQueryCallback): void {
+    if (cb == null) cb = (e: Error) => { if (e) this.logger.error('Request failed with:', e); };
+    return this.getConnection((err, connection) => {
+      if (err) return cb(err);
+      const request = connection.query(query, params, (err, result, fields) => {
+        if (err && err.fatal) connection.destroy();
+        else connection.release();
+        this.logger.log(request.sql);
+        if (err) return cb(err, null, null);
+        else return cb(null, result, fields);
       });
     });
   }
 
   protected transact(queries: SQLTransacQueries, cb?: SQLTransactCallback): Promise<void> {
-    if (cb == null) cb = e => null;
+    if (cb == null) cb = (e: Error) => { if (e) this.logger.error('Transaction failed with:', e); };
     return new Promise(resolve => {
-      this.connection.getConnection((err, connection) => {
-        if (err) { this.logger.error(err); return cb(err); }
-        const timedConnection = <any>connection;
-        if (timedConnection.createdAt == null) timedConnection.createdAt = Date.now();
+      return this.getConnection((err, connection) => {
+        if (err) return cb(err);
         return connection.beginTransaction(async err => {
-          if (err) { this.logger.error(err); return cb(err); }
-          const requester = (query: string, params: Array<any>) => {
-            return new Promise((resolve, reject) => {
-              const request = connection.query(query, params, (err: Error, result: Array<any>) => {
-                this.logger.log(request.sql);
-                if (err) return reject(err);
-                else return resolve(result);
+          if (err) return cb(err);
+          let result = <any>null;
+          try {
+            result = await queries((query: string, params: Array<any>) => {
+              return new Promise((resolve, reject) => {
+                const request = connection.query(query, params, (err: Error, result: Array<any>) => {
+                  this.logger.log(request.sql);
+                  if (err) return reject(err);
+                  else return resolve(result);
+                });
               });
             });
-          };
-          let result = <any>null;
-          try { result = await queries(requester); }
-          catch (err) {
-            this.logger.error(err);
+          } catch (err) {
+            this.logger.error('Transaction query failed with:', err);
             return connection.rollback(() => cb(err));
           }
           return connection.commit(err => {
-            if (timedConnection.createdAt + this.props.connection.lifetime > Date.now())
-              connection.destroy();
-            else
-              connection.release();
+            if (err && err.fatal) connection.destroy();
+            else connection.release();
             resolve();
-            if (err) { this.logger.error(err); return cb(err); }
-            return cb(null, result);
+            if (err) return cb(err);
+            else return cb(null, result);
           });
         });
       });
