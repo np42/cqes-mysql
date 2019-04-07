@@ -1,7 +1,7 @@
 import * as CQES  from 'cqes';
 import * as mysql from 'mysql';
 
-export interface Props extends CQES.Repository.Props {
+export interface props extends CQES.Repository.props {
   connection: {
     host:                string,
     user:                string,
@@ -29,13 +29,21 @@ interface SQLRequester {
   (query: string, params: Array<any>): Promise<any>;
 }
 
-export interface Children extends CQES.Repository.Children {}
+export interface children extends CQES.Repository.children {}
 
 export class Repository extends CQES.Repository.Repository {
   protected connection:  mysql.Pool;
 
-  constructor(props: Props, children: Children) {
-    super({ type: 'Repository.MySQL', color: 'blue', ...props }, children);
+  static escape(value: any) {
+    return mysql.escape(value);
+  }
+
+  static escapeId(name: string) {
+    return mysql.escapeId(name);
+  }
+
+  constructor(props: props, children: children) {
+    super({ ...props, type: props.type + '.mysql' }, children);
     if (props.connection == null)
       props.connection = { host: '127.0.0.1', user: 'root', password: '', database: 'mysql' };
     if (props.connection.waitForConnections !== false)
@@ -66,16 +74,18 @@ export class Repository extends CQES.Repository.Repository {
     });
   }
 
-  protected request(query: string, params: Array<any>, cb?: SQLQueryCallback): void {
-    if (cb == null) cb = (e: Error) => { if (e) this.logger.error('Request failed with:', e); };
-    return this.getConnection((err, connection) => {
-      if (err) return cb(err);
-      const request = connection.query(query, params, (err, result, fields) => {
-        if (err && err.fatal) connection.destroy();
-        else connection.release();
-        this.logger.log(request.sql);
-        if (err) return cb(err, null, null);
-        else return cb(null, result, fields);
+  protected request(query: string, params: Array<any>): Promise<Array<any>> {
+    return new Promise((resolve, reject) => {
+      return this.getConnection((err, connection) => {
+        if (err) return reject(err);
+        const request = connection.query(query, params, (err, result, fields) => {
+          if (err && err.fatal) connection.destroy();
+          else connection.release();
+          this.logger.log(request.sql);
+          if (err) return reject(err);
+          Object.defineProperty(result, 'fields', { value: fields });
+          return resolve(result);
+        });
       });
     });
   }
