@@ -1,7 +1,7 @@
 {
-  "name": "cqes-db-mysql",
-  "version": "3.0.1",
-  "description": "CQES Repository for MySQL",
+  "name": "cqes-mysql",
+  "version": "4.0.0",
+  "description": "MySQL module for cqes framework",
   "main": "dist/index.js",
   "repository": {
     "type": "git",
