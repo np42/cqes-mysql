@@ -1,6 +1,12 @@
 node_modules
 npm-debug.log
 
+index.d.ts
+index.js
+index.js.map
+package-lock.json
+
+
 *~
 .#*
 \#*#
