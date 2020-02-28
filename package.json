@@ -2,7 +2,7 @@
   "name": "cqes-mysql",
   "version": "4.0.0",
   "description": "MySQL module for cqes framework",
-  "main": "dist/index.js",
+  "main": "index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/apiculteur/cqes-db-mysql.git"
