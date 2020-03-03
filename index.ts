@@ -1,11 +1,12 @@
 import { Component }  from 'cqes';
+import { merge }      from 'cqes-util';
 import * as mysql     from 'mysql';
 
 export function parseURL(url: string) {
   const object = new URL(url);
   const result = <props>{};
   if (object.protocol !== 'mysql:') return result;
-  result.host = object.hostname;
+  if (object.hostname) result.host = object.hostname;
   if (object.port) result.port = Number(object.port);
   if (object.username) result.user = object.username;
   if (object.password) result.password = object.password;
@@ -19,6 +20,7 @@ export interface SQLResponse {
 }
 
 export interface SQLConnection {
+  url?:                string;
   host?:               string;
   port?:               number;
   user?:               string;
@@ -75,7 +77,7 @@ export class MySQL extends Component.Component {
 
   constructor(props: props) {
     super(props);
-    this.connection = props;
+    this.connection = merge(props.url ? parseURL(props.url) : {}, props);
     if (this.connection.waitForConnections !== false)
       this.connection.waitForConnections = true;
     if (!(this.connection.lifetime > 0))
