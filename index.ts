@@ -1,5 +1,17 @@
-import { Component }    from 'cqes';
-import * as mysql       from 'mysql';
+import { Component }  from 'cqes';
+import * as mysql     from 'mysql';
+
+export function parseURL(url: string) {
+  const object = new URL(url);
+  const result = <props>{};
+  if (object.protocol !== 'mysql:') return result;
+  result.host = object.hostname;
+  if (object.port) result.port = Number(object.port);
+  if (object.username) result.user = object.username;
+  if (object.password) result.password = object.password;
+  if (object.pathname != '/') result.database = object.pathname.substr(1);
+  return result;
+}
 
 export interface SQLResponse {
   id:       string;
@@ -7,10 +19,11 @@ export interface SQLResponse {
 }
 
 export interface SQLConnection {
-  host:                string;
-  user:                string;
-  password:            string;
-  database:            string;
+  host?:               string;
+  port?:               number;
+  user?:               string;
+  password?:           string;
+  database?:           string;
   waitForConnections?: boolean;
   lifetime?:           number;
   typeCast?:           any;
@@ -63,8 +76,6 @@ export class MySQL extends Component.Component {
   constructor(props: props) {
     super(props);
     this.connection = props;
-    if (this.connection == null)
-      this.connection = { host: '127.0.0.1', user: 'root', password: '', database: 'mysql' };
     if (this.connection.waitForConnections !== false)
       this.connection.waitForConnections = true;
     if (!(this.connection.lifetime > 0))
@@ -77,6 +88,21 @@ export class MySQL extends Component.Component {
       }
     };
     this.pool = mysql.createPool(this.connection);
+  }
+
+  public start(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.pool.getConnection((err, connection) => {
+        if (err) {
+          return reject(err);
+        } else {
+          const timedConnection = <any>connection;
+          timedConnection.createdAt = Date.now();
+          connection.release();
+          return resolve();
+        }
+      });
+    });
   }
 
   public getConnection(handler: (err: Error, connection: mysql.PoolConnection) => void) {
@@ -153,21 +179,6 @@ export class MySQL extends Component.Component {
     });
   }
 
-  //--
-  public start(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.pool.getConnection((err, connection) => {
-        if (err) {
-          return reject(err);
-        } else {
-          const timedConnection = <any>connection;
-          timedConnection.createdAt = Date.now();
-          connection.release();
-          return resolve();
-        }
-      });
-    });
-  }
 
   public stop(): Promise<void> {
     return new Promise(resolve => {
