@@ -51,16 +51,24 @@ interface SQLRequester {
   (query: string, params: Array<any>): Promise<any>;
 }
 
+export function escape(value: any) {
+  return mysql.escape(value);
+}
+
+export function escapeId(name: string) {
+  return mysql.escapeId(name);
+}
+
 export class MySQL extends Component.Component {
   protected pool: mysql.Pool;
   protected connection: SQLConnection;
 
   static escape(value: any) {
-    return mysql.escape(value);
+    return escape(value);
   }
 
   static escapeId(name: string) {
-    return mysql.escapeId(name);
+    return escapeId(name);
   }
 
   static toSQL(value: any) {
