@@ -73,11 +73,12 @@ export class MySQL extends Component.Component {
 
   static toSQL(value: any) {
     if (value instanceof Date) {
+      if (value.toString() === 'Invalid Date') return null;
       const date = value.toISOString().substr(0, 10);
       const h = value.getHours();
       const m = value.getMinutes();
       const s = value.getSeconds();
-      const time = [h < 10 ? '0' + h : h, m < 10 ? '0' + m : m, s < 10 ? '0' + s : s].join('-');
+      const time = [h, m, s].map(x => String(x).padStart(2, '0')).join('-');
       return date + ' ' + time;
     }
     return value;
