@@ -9,20 +9,20 @@ export class Match extends Sum
 
   static compute(value: Match) {
     let requirements = '';
-    const parameters = [];
+    const parameters: Array<any> = [];
     switch (value.$) {
     case 'MatchField': {
-      const result = MatchField.compute(value);
+      const result = MatchField.compute(<MatchField> value);
       requirements += result.requirements;
       parameters.splice(Infinity, 0, ...result.parameters);
     } break ;
     case 'MatchOr': {
-      const result = MatchOr.compute(value);
+      const result = MatchOr.compute(<MatchOr> value);
       requirements += result.requirements;
       parameters.splice(Infinity, 0, ...result.parameters);
     } break ;
     case 'MatchAnd': {
-      const result = MatchAnd.compute(value);
+      const result = MatchAnd.compute(<MatchAnd> value);
       requirements += result.requirements;
       parameters.splice(Infinity, 0, ...result.parameters);
     } break ;
@@ -63,7 +63,7 @@ export class MatchAnd extends Object
 
   static compute(value: MatchAnd) {
     let requirements = '( ';
-    const parameters = [];
+    const parameters: Array<any> = [];
     for (let i = 0; i < value.and.length; i += 1) {
       const result = Match.compute(value.and[i]);
       if (i > 0) requirements += ' AND ';
@@ -83,7 +83,7 @@ export class MatchOr extends Object
 
   static compute(value: MatchOr) {
     let requirements = '( ';
-    const parameters = [];
+    const parameters: Array<any> = [];
     for (let i = 0; i < value.or.length; i += 1) {
       const result = Match.compute(value.or[i]);
       if (i > 0) requirements += ' OR ';
