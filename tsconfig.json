@@ -15,6 +15,6 @@
   , "outDir": ""
   , "sourceMap": true
   }
-, "include": [ "index.ts" ]
+, "include": [ "index.ts", "type.ts" ]
 , "exclude": [ "node_modules", "**/*.spec.ts" ]
 }

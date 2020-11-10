@@ -4,6 +4,10 @@ node_modules
 index.d.ts
 index.js
 index.js.map
+type.d.ts
+type.js
+type.js.map
+
 package-lock.json
 
 
