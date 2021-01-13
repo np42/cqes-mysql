@@ -78,7 +78,7 @@ export class MySQL extends Component.Component {
       const h = value.getHours();
       const m = value.getMinutes();
       const s = value.getSeconds();
-      const time = [h, m, s].map(x => String(x).padStart(2, '0')).join('-');
+      const time = [h, m, s].map(x => String(x).padStart(2, '0')).join(':');
       return date + ' ' + time;
     }
     return value;
