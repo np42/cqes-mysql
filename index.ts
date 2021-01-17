@@ -8,9 +8,9 @@ export function parseURL(url: string) {
   if (object.protocol !== 'mysql:') return result;
   if (object.hostname) result.host = object.hostname;
   if (object.port) result.port = Number(object.port);
-  if (object.username) result.user = object.username;
-  if (object.password) result.password = object.password;
-  if (object.pathname != '/') result.database = object.pathname.substr(1);
+  if (object.username) result.user = decodeURIComponent(object.username);
+  if (object.password) result.password = decodeURIComponent(object.password);
+  if (object.pathname != '/') result.database = decodeURIComponent(object.pathname.substr(1));
   return result;
 }
 
