@@ -142,10 +142,11 @@ export class MySQL extends Component.Component {
     return new Promise((resolve, reject) => {
       return this.getConnection((err, connection) => {
         if (err) return reject(err);
+        const startAt = Date.now();
         const request = connection.query(query, params.map(MySQL.toSQL), (err, result, fields) => {
           if (err && err.fatal) connection.destroy();
           else connection.release();
-          this.logger.log('%s', request.sql);
+          this.logger.log('(%sms) %1w.yellow', Date.now() - startAt, request.sql);
           if (err) return reject(err);
           Object.defineProperty(result, 'fields', { value: fields });
           return resolve(result);
@@ -168,7 +169,7 @@ export class MySQL extends Component.Component {
                 const startAt = Date.now();
                 const params  = rawParams.map(MySQL.toSQL);
                 const request = connection.query(query, params, (err: Error, result: Array<any>) => {
-                  this.logger.log('(%sms)', Date.now() - startAt, request.sql);
+                  this.logger.log('(%sms) %1w.yellow', Date.now() - startAt, request.sql);
                   if (err) return reject(err);
                   else return resolve(result);
                 });
