@@ -147,7 +147,10 @@ export class MySQL extends Component.Component {
           if (err && err.fatal) connection.destroy();
           else connection.release();
           this.logger.log('(%sms) %1w.yellow', Date.now() - startAt, request.sql);
-          if (err) return reject(err);
+          if (err) {
+            this.logger.log("%2w.red", err.toString());
+            return reject(err);
+          }
           Object.defineProperty(result, 'fields', { value: fields });
           return resolve(result);
         });
@@ -170,7 +173,10 @@ export class MySQL extends Component.Component {
                 const params  = rawParams.map(MySQL.toSQL);
                 const request = connection.query(query, params, (err: Error, result: Array<any>) => {
                   this.logger.log('(%sms) %1w.yellow', Date.now() - startAt, request.sql);
-                  if (err) return reject(err);
+                  if (err) {
+                    this.logger.log("%2w.red", err.toString());
+                    return reject(err);
+                  }
                   else return resolve(result);
                 });
               });
